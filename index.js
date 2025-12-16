@@ -3,6 +3,9 @@ const cors = require('cors')
 require('dotenv').config()
 const port = process.env.PORT || 3000
 const { MongoClient, ServerApiVersion } = require("mongodb");
+const stripe = require("stripe")(process.env.STRIPE_SECRATE);
+const crypto = require('crypto');
+
 const app = express();
 app.use(cors());
 app.use(express.json())
@@ -11,6 +14,7 @@ app.use(express.json())
 
 
 const admin = require("firebase-admin");
+const { url } = require("inspector");
 const decoded = Buffer.from(process.env.FB_KEY, "base64").toString(
   "utf8"
 );
@@ -62,6 +66,7 @@ async function run() {
     const database = client.db('assignment11')
     const userCollections = database.collection('user')
     const  requestsCollections = database.collection('request')
+    const  paymentsCollections = database.collection('payments')
     
 
     app.post('/users', async(req, res) => {
@@ -104,7 +109,7 @@ async function run() {
     })
 
  
-    //products
+    //request
 
     app.post("/requests", verifyFBToken, async (req, res) => {
       const data = req.body;
@@ -127,6 +132,68 @@ async function run() {
 
 
       res.send({request: result , totalRequest})
+    })
+
+
+    //payments
+
+    app.post("/create-payment-checkout", async (req, res) => {
+      const information = req.body;
+      const amount = parseInt(information.donateAmount) * 100;
+
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              unit_amount: amount,
+              product_data: {
+                name: "please Donate",
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        metadata: {
+          donarName: information?.donarName,
+        },
+        customer_email: information?.donarEmail,
+        success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
+      });
+
+      res.send({ url: session.url });
+    });
+
+
+    app.post('/success-payment', async (req, res) => {
+      const { session_id } = req.query;
+      const session = await stripe.checkout.sessions.retrieve(
+        session_id
+      );
+      console.log(session);
+
+      const transactionId = session.payment_intent;
+      const isPaymentExist = await paymentsCollections.findOne({ transactionId })
+      
+      if (isPaymentExist) {
+        return res.status(400).send("Already Exist")
+      }
+
+      if (session.payment_status == 'paid') {
+        const paymentInfo = {
+          amount : session.amount_total / 100,
+          currency: session.currency,
+          donarEmail: session.customer_email,
+          transactionId,
+          payment_status: session.payment_status,
+          paidAt: new Date()
+        }
+        const result = await paymentsCollections.insertOne(paymentInfo)
+        return res.send(result)
+      }
+      
     })
 
 
