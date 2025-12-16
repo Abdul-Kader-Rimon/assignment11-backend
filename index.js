@@ -9,6 +9,39 @@ app.use(express.json())
 
 
 
+
+const admin = require("firebase-admin");
+const decoded = Buffer.from(process.env.FB_KEY, "base64").toString(
+  "utf8"
+);
+const serviceAccount = JSON.parse(decoded);
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+
+
+const verifyFBToken = async (req , res , next) => {
+  const token = req.headers.authorization;
+
+  if (!token) {
+    return res.status(401).send({message : "unauthorize access"})
+  }
+
+  try {
+    const idToken = token.split(' ')[1]
+    const decoded = await admin.auth().verifyIdToken(idToken)
+    console.log("decoded info", decoded)
+    req.decoded_email = decoded.email;
+    next()
+  }
+  catch (error) {
+   return res.status(401).send({ message: "unauthorize access" });
+  }
+}
+
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.gfwnnwz.mongodb.net/?appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -28,15 +61,23 @@ async function run() {
 
     const database = client.db('assignment11')
     const userCollections = database.collection('user')
+    const  requestsCollections = database.collection('request')
+    
 
     app.post('/users', async(req, res) => {
       const userInfo = req.body;
-      userInfo.role = "buyer";
       userInfo.createdAt = new Date();
-
+      userInfo.role = "Donor";
+      userInfo.status = "active";
+      
       const result = await userCollections.insertOne(userInfo);
 
       res.send(result)
+    })
+
+    app.get('/users', verifyFBToken, async (req, res) => {
+      const result = await userCollections.find().toArray();
+      res.status(200).send(result)
     })
 
     app.get('/users/role/:email', async(req, res) => {
@@ -46,6 +87,46 @@ async function run() {
       const result = await userCollections.findOne(quary)
       console.log(result)
       res.send(result)
+    })
+
+    app.patch('/update/user/status', verifyFBToken, async (req, res) => {
+      const { email, status } = req.query;
+      const quary = { email: email };
+
+      const updateStatus = {
+        $set: {
+          status: status
+        }
+      }
+
+      const result = await userCollections.updateOne(quary, updateStatus)
+      res.send(result)
+    })
+
+ 
+    //products
+
+    app.post("/requests", verifyFBToken, async (req, res) => {
+      const data = req.body;
+      data.createdAt = new Date();
+      const result = await  requestsCollections.insertOne(data)
+
+      res.send(result)
+    })
+
+  
+    app.get('/my-request', verifyFBToken, async (req, res) => {
+      const email = req.decoded_email;
+      const size = Number(req.query.size)
+      const page = Number(req.query.page)
+      const query = { requester_email: email };
+
+      const result = await requestsCollections.find(query).limit(size).skip(size * page).toArray();
+      
+      const totalRequest = await requestsCollections.countDocuments(query);
+
+
+      res.send({request: result , totalRequest})
     })
 
 
