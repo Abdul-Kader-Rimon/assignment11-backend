@@ -134,6 +134,31 @@ async function run() {
       res.send({request: result , totalRequest})
     })
 
+    app.get('/search-requests', async (req, res) => {
+      const { bloodGroup, district, upazila } = req.query;
+      
+      const query = {}
+
+      if (!query) {
+        return;
+      }
+      if (bloodGroup) {
+        const fixed = bloodGroup.replace(/ /g, "+").trim();
+        query.blood_group = fixed;
+      }
+      if (district) {
+        query.recipient_district = district
+      }
+      if (upazila) {
+        query.recipient_upazila =  upazila
+      }
+      console.log(query);
+      
+      const result = await requestsCollections.find(query).toArray();
+
+      res.send(result)
+    })
+
 
     //payments
 
