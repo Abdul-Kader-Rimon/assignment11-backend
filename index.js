@@ -108,6 +108,22 @@ async function run() {
       res.send(result)
     })
 
+    //volunteer
+    app.patch('/users/make-volunteer/:email', verifyFBToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await userCollections.updateOne({ email }, { $set: { role: 'volurnteer' } });
+
+      res.send(result)
+
+    })
+    app.patch('/users/make-donor/:email', verifyFBToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await userCollections.updateOne({ email }, { $set: { role: 'Donor' } });
+
+      res.send(result)
+
+    })
+
  
     //request
 
