@@ -15,6 +15,7 @@ app.use(express.json())
 
 const admin = require("firebase-admin");
 const { url } = require("inspector");
+const { error } = require("console");
 const decoded = Buffer.from(process.env.FB_KEY, "base64").toString(
   "utf8"
 );
@@ -63,104 +64,114 @@ async function run() {
     await client.connect();
     // Send a ping to confirm a successful connection
 
-    const database = client.db('assignment11')
-    const userCollections = database.collection('user')
-    const  requestsCollections = database.collection('request')
-    const  paymentsCollections = database.collection('payments')
-    
+    const database = client.db("assignment11");
+    const userCollections = database.collection("user");
+    const requestsCollections = database.collection("request");
+    const paymentsCollections = database.collection("payments");
 
-    app.post('/users', async(req, res) => {
+    app.post("/users", async (req, res) => {
       const userInfo = req.body;
       userInfo.createdAt = new Date();
       userInfo.role = "Donor";
       userInfo.status = "active";
-      
+
       const result = await userCollections.insertOne(userInfo);
 
-      res.send(result)
-    })
+      res.send(result);
+    });
 
-    app.get('/users', verifyFBToken, async (req, res) => {
+    app.get("/users", verifyFBToken, async (req, res) => {
       const result = await userCollections.find().toArray();
-      res.status(200).send(result)
-    })
+      res.status(200).send(result);
+    });
 
-    app.get('/users/role/:email', async(req, res) => {
-      const {email} = req.params
+    app.get("/users/role/:email", async (req, res) => {
+      const { email } = req.params;
 
-      const quary = { email: email }
-      const result = await userCollections.findOne(quary)
-      console.log(result)
-      res.send(result)
-    })
+      const quary = { email: email };
+      const result = await userCollections.findOne(quary);
+      console.log(result);
+      res.send(result);
+    });
 
-    app.patch('/update/user/status', verifyFBToken, async (req, res) => {
+    app.patch("/update/user/status", verifyFBToken, async (req, res) => {
       const { email, status } = req.query;
       const quary = { email: email };
 
       const updateStatus = {
         $set: {
-          status: status
-        }
-      }
+          status: status,
+        },
+      };
 
-      const result = await userCollections.updateOne(quary, updateStatus)
-      res.send(result)
-    })
+      const result = await userCollections.updateOne(quary, updateStatus);
+      res.send(result);
+    });
 
     //volunteer
-    app.patch('/users/make-volunteer/:email', verifyFBToken, async (req, res) => {
+    app.patch(
+      "/users/make-volunteer/:email",
+      verifyFBToken,
+      async (req, res) => {
+        const email = req.params.email;
+        const result = await userCollections.updateOne(
+          { email },
+          { $set: { role: "volunteer" } }
+        );
+
+        res.send(result);
+      }
+    );
+    app.patch("/users/make-admin/:email", verifyFBToken, async (req, res) => {
       const email = req.params.email;
-      const result = await userCollections.updateOne({ email }, { $set: { role: 'volurnteer' } });
+      const result = await userCollections.updateOne(
+        { email },
+        { $set: { role: "admin" } }
+      );
 
-      res.send(result)
-
-    })
-    app.patch('/users/make-admin/:email', verifyFBToken, async (req, res) => {
+      res.send(result);
+    });
+    app.patch("/users/make-donor/:email", verifyFBToken, async (req, res) => {
       const email = req.params.email;
-      const result = await userCollections.updateOne({ email }, { $set: { role: 'admin' } });
+      const result = await userCollections.updateOne(
+        { email },
+        { $set: { role: "Donor" } }
+      );
 
-      res.send(result)
+      res.send(result);
+    });
 
-    })
-    app.patch('/users/make-donor/:email', verifyFBToken, async (req, res) => {
-      const email = req.params.email;
-      const result = await userCollections.updateOne({ email }, { $set: { role: 'Donor' } });
-
-      res.send(result)
-
-    })
-
- 
     //request
 
     app.post("/requests", verifyFBToken, async (req, res) => {
       const data = req.body;
       data.createdAt = new Date();
-      const result = await  requestsCollections.insertOne(data)
+      const result = await requestsCollections.insertOne(data);
 
-      res.send(result)
-    })
+      res.send(result);
+    });
 
-  
-    app.get('/my-request', verifyFBToken, async (req, res) => {
+    app.get("/my-request", verifyFBToken, async (req, res) => {
       const email = req.decoded_email;
-      const size = Number(req.query.size)
-      const page = Number(req.query.page)
+      const size = Number(req.query.size);
+      const page = Number(req.query.page);
       const query = { requester_email: email };
 
-      const result = await requestsCollections.find(query).limit(size).skip(size * page).toArray();
-      
+      const result = await requestsCollections
+        .find(query)
+        .limit(size)
+        .skip(size * page)
+        .toArray();
+
       const totalRequest = await requestsCollections.countDocuments(query);
 
+      res.send({ request: result, totalRequest });
+    });
 
-      res.send({request: result , totalRequest})
-    })
-
-    app.get('/search-requests', async (req, res) => {
+    app.get("/search-requests", async (req, res) => {
       const { bloodGroup, district, upazila } = req.query;
-      
-      const query = {}
+
+      const query = {};
 
       if (!query) {
         return;
@@ -170,19 +181,58 @@ async function run() {
         query.blood_group = fixed;
       }
       if (district) {
-        query.recipient_district = district
+        query.recipient_district = district;
       }
       if (upazila) {
-        query.recipient_upazila =  upazila
+        query.recipient_upazila = upazila;
       }
       console.log(query);
-      
+
       const result = await requestsCollections.find(query).toArray();
 
-      res.send(result)
-    })
+      res.send(result);
+    });
 
+    app.get("/admin/dashboard-stats", verifyFBToken, async (req, res) => {
+      try {
+        const totalUsers = await userCollections.countDocuments();
+        const totalRequests = await requestsCollections.countDocuments();
 
+        const paymentResult = await paymentsCollections
+          .aggregate([
+            {
+              $group: {
+                _id: null,
+                totalFunding: { $sum: "$amount" },
+              },
+            },
+          ]).toArray();
+        
+        res.send({
+          totalUsers,
+          totalRequests,
+          totalFunding: paymentResult[0]?.totalFunding || 0,
+        });
+      } catch(error){
+        res.status(500).send({ message: 'Failed to load admin stats' });
+      }
+    });
+
+    app.get("/payments/total", verifyFBToken, async (req, res) => {
+      const result = await paymentsCollections
+        .aggregate([
+          {
+            $group: {
+              _id: null,
+              totalAmount: { $sum: "$amount" },
+              totalPayments: { $sum: 1 },
+            },
+          },
+        ]).toArray();
+      
+      res.send(result[0] || { totalAmount: 0, totalPayments: 0 });
+    });
+    
     //payments
 
     app.post("/create-payment-checkout", async (req, res) => {
@@ -214,37 +264,33 @@ async function run() {
       res.send({ url: session.url });
     });
 
-
-    app.post('/success-payment', async (req, res) => {
+    app.post("/success-payment", async (req, res) => {
       const { session_id } = req.query;
-      const session = await stripe.checkout.sessions.retrieve(
-        session_id
-      );
+      const session = await stripe.checkout.sessions.retrieve(session_id);
       console.log(session);
 
       const transactionId = session.payment_intent;
-      const isPaymentExist = await paymentsCollections.findOne({ transactionId })
-      
+      const isPaymentExist = await paymentsCollections.findOne({
+        transactionId,
+      });
+
       if (isPaymentExist) {
-        return res.status(400).send("Already Exist")
+        return res.status(400).send("Already Exist");
       }
 
-      if (session.payment_status == 'paid') {
+      if (session.payment_status == "paid") {
         const paymentInfo = {
-          amount : session.amount_total / 100,
+          amount: session.amount_total / 100,
           currency: session.currency,
           donarEmail: session.customer_email,
           transactionId,
           payment_status: session.payment_status,
-          paidAt: new Date()
-        }
-        const result = await paymentsCollections.insertOne(paymentInfo)
-        return res.send(result)
+          paidAt: new Date(),
+        };
+        const result = await paymentsCollections.insertOne(paymentInfo);
+        return res.send(result);
       }
-      
-    })
-
-
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
