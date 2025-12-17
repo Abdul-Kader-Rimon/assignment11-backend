@@ -116,6 +116,13 @@ async function run() {
       res.send(result)
 
     })
+    app.patch('/users/make-admin/:email', verifyFBToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await userCollections.updateOne({ email }, { $set: { role: 'admin' } });
+
+      res.send(result)
+
+    })
     app.patch('/users/make-donor/:email', verifyFBToken, async (req, res) => {
       const email = req.params.email;
       const result = await userCollections.updateOne({ email }, { $set: { role: 'Donor' } });
