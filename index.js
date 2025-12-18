@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require('cors')
 require('dotenv').config()
 const port = process.env.PORT || 3000
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const stripe = require("stripe")(process.env.STRIPE_SECRATE);
 const crypto = require('crypto');
 
@@ -306,7 +306,9 @@ async function run() {
         if (result.acknowledged) {
           res.send({ success: true, message: "Profile updated" });
         } else {
-          res.status(400).send({ success: false, message: "No changes Were mode" });
+          res
+            .status(400)
+            .send({ success: false, message: "No changes Were mode" });
         }
       } catch (err) {
         console.error(err);
@@ -314,7 +316,176 @@ async function run() {
           .status(500)
           .send({ success: false, message: "Failed to update profile" });
       }
-   });
+    });
+
+
+
+
+ 
+    app.get("/donation-requests", verifyFBToken, async (req, res) => {
+      try {
+        const emailFromToken = req.decoded_email;
+        const emailFromQuery = req.query.email;
+        const limit = parseInt(req.query.limit) || 3;
+        
+
+        if (emailFromToken !== emailFromQuery) {
+          return res.status(403).send({ message: "Forbidden access" });
+        }
+
+        const requests = await requestsCollections
+          .find({ requester_email: emailFromQuery })
+          .sort({ createdAt: -1 })
+          .limit(limit)
+          .toArray();
+        
+        res.send(requests);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to load donation requests" });
+      }
+    });
+
+ 
+       app.get("/donation-requests/all", verifyFBToken, async (req, res) => {
+         try {
+           const email = req.decoded_email;
+           const  page = parseInt( req.query.page) || 0;
+           const  size = parseInt(req.query.size) || 10;
+           const status = req.query.status;
+           
+           const query = { requester_email: email };
+           if (status) query.status = status;
+
+           const requests = await requestsCollections
+             .find(query)
+             .sort({ createdAt: -1 })
+             .skip(page * size)
+             .limit(size)
+             .toArray();
+           
+           const total = await requestsCollections.countDocuments(query);
+
+
+           res.send( { requests , total});
+         } catch (error) {
+           res
+             .status(500)
+             .send({ message: "Failed to  fetch donation requests" });
+         }
+       });
+    
+ 
+
+    app.get("/donation-requests/:id", verifyFBToken, async (req, res) => {
+      try {
+         
+        const request = await requestsCollections.findOne({
+          _id: new ObjectId(req.params.id),
+        })
+        res.send(request)
+ 
+      } catch (error) {
+        res.status(500).send({ message: "Failed to  fetch donation request" });
+      }
+    });
+
+ 
+        app.post("/donation-requests", verifyFBToken, async (req, res) => {
+          try {
+            const  user = await userCollections.findOne({
+              email: req.decoded_email
+            });
+
+            if (user.status !== "active") {
+              return res
+                .status(403)
+                .send({ message: "Blocked users cannot create requests" });
+            }
+
+            const data = req.body;
+
+            data.requester_email = req.decoded_email;
+            data.requester_name = user.name || user.displayName;
+            data.status = "pending";
+            data.createdAt = new Date();
+
+            const result = await requestsCollections.insertOne(data);
+
+
+            res.send(result)
+ 
+          } catch (error) {
+            res
+              .status(500)
+              .send({ message: "Failed to  create donation request" });
+          }
+        });
+    
+ 
+
+    
+    app.patch("/donation-requests/:id", verifyFBToken, async (req, res) => {
+      try {
+
+        const updateData = req.body;
+        const result = await requestsCollections.updateOne(
+          { _id: new ObjectId(req.params.id) },
+          {$set : updateData}
+        )
+
+      
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to   update donation request" });
+      }
+    });
+
+ 
+
+       app.patch("/donation-requests/status/:id", verifyFBToken, async (req, res) => {
+         try {
+           const { id } = req.params;
+           const { status } = req.body;
+           
+
+           const result = await requestsCollections.updateOne(
+             { _id: new ObjectId(id) },
+             { $set: { donation_status: status } }
+           );
+
+           if (result.modifiedCount > 0) {
+             res.send({
+               success: true,
+               message: "Status updated successfully",
+             });
+           } else {
+             res
+               .status(400)
+               .send({ success: false, message: "No changes made" });
+           }
+ 
+         } catch (error) {
+           res.status(500).send({ message: "Failed to update status" });
+         }
+       });
+    
+ 
+    app.delete("/donation-requests/:id", verifyFBToken, async (req, res) => {
+      try {
+
+        const result = await requestsCollections.deleteOne({
+          _id: new ObjectId(req.params.id),
+        });
+
+
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to delete donation request" });
+      }
+    });
+
+    
 
 
 
