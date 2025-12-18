@@ -206,15 +206,16 @@ async function run() {
                 totalFunding: { $sum: "$amount" },
               },
             },
-          ]).toArray();
-        
+          ])
+          .toArray();
+
         res.send({
           totalUsers,
           totalRequests,
           totalFunding: paymentResult[0]?.totalFunding || 0,
         });
-      } catch(error){
-        res.status(500).send({ message: 'Failed to load admin stats' });
+      } catch (error) {
+        res.status(500).send({ message: "Failed to load admin stats" });
       }
     });
 
@@ -228,11 +229,12 @@ async function run() {
               totalPayments: { $sum: 1 },
             },
           },
-        ]).toArray();
-      
+        ])
+        .toArray();
+
       res.send(result[0] || { totalAmount: 0, totalPayments: 0 });
     });
-    
+
     //payments
 
     app.post("/create-payment-checkout", async (req, res) => {
@@ -291,6 +293,30 @@ async function run() {
         return res.send(result);
       }
     });
+
+    app.patch("/update-profile/:email", verifyFBToken, async (req, res) => {
+      const email = req.params.email;
+      const updateData = req.body;
+
+      try {
+        const result = await userCollections.updateOne(
+          { email },
+          { $set: updateData }
+        );
+        if (result.acknowledged) {
+          res.send({ success: true, message: "Profile updated" });
+        } else {
+          res.status(400).send({ success: false, message: "No changes Were mode" });
+        }
+      } catch (err) {
+        console.error(err);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to update profile" });
+      }
+   });
+
+
 
     await client.db("admin").command({ ping: 1 });
     console.log(
