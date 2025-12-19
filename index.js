@@ -81,7 +81,16 @@ async function run() {
     });
 
     app.get("/users", verifyFBToken, async (req, res) => {
-      const result = await userCollections.find().toArray();
+      const { status } = req.query;
+
+      let query = {};
+      if (status) {
+        query.status = status;
+      }
+      
+
+
+      const result = await userCollections.find(query).toArray();
       res.status(200).send(result);
     });
 
