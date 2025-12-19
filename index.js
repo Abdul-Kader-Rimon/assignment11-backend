@@ -470,11 +470,25 @@ async function run() {
  
     app.get("/admin/all-donation-requests", verifyFBToken, async (req, res) => {
       try {
+
+         const { status } = req.query;  
+
+        let query = {};
+        
+           if (status) {
+             query = {
+               $or: [{ donation_status: status }, { status: status }],
+             };
+           }
+
+
+
         const requests = await requestsCollections
-          .find({})
+          .find(query)
           .sort({ createdAt: -1 })
           .toArray();
 
+        
         res.send(requests);
 
 
@@ -485,6 +499,9 @@ async function run() {
       }
     });
     
+
+
+
 
 
 
