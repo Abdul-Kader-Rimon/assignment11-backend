@@ -92,6 +92,16 @@ async function run() {
       res.status(200).send(result);
     });
 
+    app.get("/user", verifyFBToken, async (req, res) => {
+      const { email } = req.query;
+      if (!email) return res.status(400).send({ message: "Email required" });
+
+      const user = await userCollections.findOne({ email });
+      if (!user) return res.status(404).send({ message: "User not found" });
+      
+      res.status(200).send(user)
+    })
+
     app.get("/users/role/:email", async (req, res) => {
       const { email } = req.params;
 
