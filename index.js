@@ -68,6 +68,7 @@ async function run() {
     const userCollections = database.collection("user");
     const requestsCollections = database.collection("request");
     const paymentsCollections = database.collection("payments");
+    const blogCollections = database.collection("blog_posts");
 
     app.post("/users", async (req, res) => {
       const userInfo = req.body;
@@ -541,6 +542,69 @@ async function run() {
         }
       }
     );
+
+   
+app.get("/blog-posts", async (req, res) => {
+      try {
+        const posts = await blogCollections
+          .find({})
+          .sort({ createdAt: -1 })
+          .limit(12)
+          .toArray();
+
+        res.json(posts);
+      } catch (err) {
+        console.error("Error fetching blog posts:", err);
+        res.status(500).json({ message: "Could not fetch blog posts" });
+      }
+    });
+
+     
+app.get("/blog-posts/:id", async (req, res) => {
+  try {
+    const blogCollection = database.collection("blog_posts");
+    
+    let post;
+    
+   
+    if (ObjectId.isValid(req.params.id)) {
+      post = await blogCollection.findOne({ _id: new ObjectId(req.params.id) });
+    }
+    
+     
+    if (!post && req.params.id) {
+      post = await blogCollection.findOne({ slug: req.params.id });
+    }
+
+    if (!post) {
+      return res.status(404).json({ message: "Blog post not found" });
+    }
+
+    res.json(post);
+  } catch (err) {
+    console.error("Error fetching blog post:", err);
+    res.status(500).json({ message: "Could not fetch blog post" });
+  }
+});
+
+ 
+app.get("/donation-requests/public/:id", async (req, res) => {
+  try {
+    const request = await requestsCollections.findOne({
+      _id: new ObjectId(req.params.id),
+    });
+
+    if (!request) {
+      return res.status(404).json({ message: "Donation request not found" });
+    }
+ 
+
+    res.json(request);
+  } catch (err) {
+    console.error("Error fetching public request:", err);
+    res.status(500).json({ message: "Failed to fetch request details" });
+  }
+});
 
     // await client.db("admin").command({ ping: 1 });
     console.log(
